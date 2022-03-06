@@ -1,0 +1,476 @@
+\documentclass [leqno] {amsart}
+  
+\usepackage {amssymb}
+\usepackage {amsthm}
+\usepackage {amscd}
+
+
+%\usepackage[active]{srcltx}
+
+\usepackage[all]{xy}
+\usepackage {hyperref} 
+
+\begin{document}
+%%
+\bibliographystyle{alpha}
+\theoremstyle{plain}
+\newtheorem{proposition}[subsubsection]{Proposition}
+\newtheorem{lemma}[subsubsection]{Lemma}
+\newtheorem{corollary}[subsubsection]{Corollary}
+\newtheorem{thm}[subsubsection]{Theorem}
+\newtheorem{introthm}{Theorem}
+\newtheorem*{thm*}{Theorem}
+\newtheorem{conjecture}[subsubsection]{Conjecture}
+\newtheorem{question}{Question}
+\newtheorem{fails}[subsubsection]{Fails}
+
+\theoremstyle{definition}
+\newtheorem{definition}[subsubsection]{Definition}
+\newtheorem{notation}[subsection]{Notation}
+\newtheorem{condition}[subsubsection]{Condition}
+\newtheorem{example}[subsubsection]{Example}
+\newtheorem{claim}[subsubsection]{Claim}
+
+\theoremstyle{remark}
+\newtheorem{remark}[subsubsection]{Remark}
+
+\numberwithin{equation}{subsection}
+
+%Matheumgebungen
+\newcommand{\eq}[2]{\begin{equation}\label{#1}#2 \end{equation}}
+\newcommand{\ml}[2]{\begin{multline}\label{#1}#2 \end{multline}}
+\newcommand{\mlnl}[1]{\begin{multline*}#1 \end{multline*}}
+\newcommand{\ga}[2]{\begin{gather}\label{#1}#2 \end{gather}}
+\newcommand{\mat}[1]{\left(\begin{smallmatrix}#1\end{smallmatrix}\right)}
+
+%xypic
+\newcommand{\arir}{\ar@{^{(}->}}
+\newcommand{\aril}{\ar@{_{(}->}}
+\newcommand{\are}{\ar@{>>}}
+
+
+% Pfeile xr , xl 
+\newcommand{\xr}[1] {\xrightarrow{#1}}
+\newcommand{\xl}[1] {\xleftarrow{#1}}
+\newcommand{\lra}{\longrightarrow}
+\newcommand{\inj}{\hookrightarrow}
+
+
+% mathfrac, mathcal 
+\newcommand{\mf}[1]{\mathfrak{#1}}
+\newcommand{\mc}[1]{\mathcal{#1}}
+
+
+% Abkuerzungen zu Bourbaki-Notation
+
+% Zahlen
+\renewcommand{\P} {\mathbb{P}}
+\newcommand{\Z} {\mathbb{Z}}
+\newcommand{\Q} {\mathbb{Q}}
+\newcommand{\C} {\mathbb{C}}
+\newcommand{\F} {\mathbb{F}}
+\newcommand{\W}{\mathbb{W}}
+\newcommand{\R}{\mathbb{R}}
+
+%sonst
+\newcommand{\llb}{[\![}
+\newcommand{\rrb}{]\!]}
+
+%test
+ 
+\title[]{Adding and removing liquidity in a constant product market maker model}
+
+\begin{abstract} 
+In order to add liquidity to a pool in a constant product market maker model, equal value shares of all tokens in the pool must be provided. Similarly, when removing liquidity equal value shares are returned by the pool. 
+
+This has several disadvantages. 1. First time usage is confusing.  2. Fees occur when swapping tokens to arrive at equal value shares or after removing liquidity. 3. For pools with multiple tokens the effort turns from an inconvenience to a blocking point.
+
+We propose a method for adding liquidity in an unbalanced way. Under the hood this uses zero fee swaps to arrive at equal value shares. It removes the manual swaps and corresponding fees. To keep track in which tokens the liquidity was provided, liquidity token types corresponding to the token types of the pool are introduced. 
+\end{abstract}
+
+
+\author{Andre Chatzistamatiou}
+\email{andre.chatzistamatiou@gmail.com}
+
+\maketitle
+
+
+\section{Swaps} 
+
+%\subsection{Basic definitions and properties}
+Before we come to swaps, we would like to fix some notations.
+
+\begin{notation}
+We will denote by $\R_{\geq 0}$ and $\R_{>0}$ the set of real numbers $\geq 0$ and $>0$, respectively. The number of tokens in our pool will be $n$; typically, $n=2$ for current liquid pool implementations.
+
+We will denote the user balance by 
+$$
+{\rm UserBalance} = \R_{\geq 0}^n,
+$$  
+and the liquid pool balance by 
+$$
+{\rm PoolBalance} = \R_{>0}^n.
+$$
+We will use $u, u', \dots$ to denote the elements in ${\rm UserBalance}$, and $x, x', \dots$ for the elements in ${\rm PoolBalance}$. Moreover, $u_i, x_i$ will denote the $i$-th coordinate of $u$ and $x$, respectively. In other words, $u_i$ is the user balance for token $i$, and $x_i$ are the liquid pool reserves for token $i$. 
+
+For $\delta \in \R_{\geq 0}$, we will denote by
+$
+{\rm UserBalance}_{u_i \geq \delta} 
+$
+the set of elements with $u_i\geq \delta$.
+\end{notation}
+
+The following definition is fundamental for the constant product model \cite{x-y-k-buterin}, \cite{uniswap}, \cite{x-y-k}.
+
+\begin{definition}
+For two tokens $i,j\in \{1,\dots,n\}$ with $i\neq j$, $\delta \in \R_{\geq 0}$, and $0<\gamma_{i,j}\leq 1$, we define 
+$$
+{\rm swap}_{i,j,\delta}^{\gamma_{i,j}}: {\rm UserBalance}_{u_i \geq \delta} \times {\rm PoolBalance} \xr{} {\rm UserBalance} \times {\rm PoolBalance}  
+$$
+by 
+$$
+(u_i, u_j, x_i, x_j) \mapsto (u_i-\delta, u_j +  \frac{\gamma_{i,j}\cdot a\cdot x_j}{1 + \gamma_{i,j}\cdot a} , (1+a)\cdot x_i,  \frac{x_j}{(1+\gamma_{i,j}\cdot a)}),
+$$
+with $a=\frac{\delta}{x_i}$, and all other coordninates remain the same.
+
+If $\gamma_{i,j}=1$, then we will call it a \emph{zero fee} swap.
+\end{definition}
+
+Instead of working with the formula, we will use invariants, which swaps preserve.
+
+\begin{notation}
+For a token $i$, we will denote by ${\rm total}_i$ the map $(u,x)\mapsto u_i+x_i$. 
+
+We will denote by $p$ the map 
+$$
+x\mapsto \prod_{j = 1}^n x_j. 
+$$
+\end{notation}
+
+The following proposition is easy to prove by using the explicit formulas for swaps.
+
+\begin{proposition}
+For all $i$, we have
+$$
+{\rm total}_i \circ {\rm swap}_{i,j,\delta}^{\gamma_{i,j}} = {\rm total}_i.
+$$
+Moreover, we have 
+$$
+p\circ {\rm swap}_{i,j,\delta}^{\gamma_{i,j}} \geq p,
+$$
+with equality whenever $\gamma_{i,j}=1$. In other words, zero fee swaps preserve $p$.
+\end{proposition}
+
+The name \emph{constant product model} derives from the invariance of $p$ under zero fee swaps. 
+
+%We will call ${\rm total}_i$, for all tokens $i$, and $p$ the {\emph %invariant} functions.
+
+The next lemma shows that two states with the same invariants can be connected by a chain of zero fee swaps.
+
+\begin{lemma}\label{lemma:connected}
+Let $(u,x)$ and $(u',x')$ be two points of ${\rm UserBalance} \times {\rm PoolBalance}$ with ${\rm total}_i(u,x)={\rm total}_i(u',x')$ for all tokens $i$, and $p(x)=p(x')$. Then there is a chain of zero fee swaps which maps $(u, x)$ to $(u', x')$. 
+\begin{proof}
+We will map $(u, x)$ to $(u', x'')$ with zero fee swaps. Since ${\rm total}_i(u,x)={\rm total}_i(u', x'')={\rm total}_i(u', x')$ for all $i$, we conclude $x''=x'$. 
+
+We claim that if $u\neq u'$, then there is one token $i$ such that $u_{i}> u'_{i}$. Indeed, if $u_{j}\leq u'_{j}$ for all $j$, then inequality must hold for at least one, say $j_0$. This implies $x_j\geq x'_{j}$ for all $j$, and $x_{j_0}>x'_{j_0}$. This is a contradiction to $\prod_{j} x_j= \prod_{j} x'_j$.
+
+We can assume $u\neq u'$, because otherwise we are done. Hence we can find $i_1$ with $u_{i_1}>u'_{i_1}$, and by symmetry we can find $j$ with $u_j<u'_j$. After defining
+$$
+(u^1,x^1): = {\rm swap}_{i_1,j,u_{i_1}-u'_{i_1}}^{1}(u,x),
+$$
+we see that $u^1_{i_1}=u'_{i_1}$. Replacing $(u,x)$ by $(u^1,x^1)$, and repeating the argument, we get $i_2,\dots, i_k$ until $u^k=u'$. 
+\end{proof}
+\end{lemma}
+
+\begin{remark}
+The argument in the lemma shows that we need at most $n-1$ zero fee swaps to map $(u,x)$ to $(u',x')$.
+\end{remark}
+
+\section{Adding and removing liquidity} 
+
+\subsection{Adding liquidity}
+Current methods for adding liquidity to a liquid pool assume that the liquidity is proportional to the pool balance. In the next proposition, we show that this can always be achieved by a chain of zero fee swaps.
+
+\begin{proposition} \label{proposition:lambda}
+For $(u,x)\in {\rm UserBalance} \times {\rm PoolBalance}$ there is a unique $\lambda\in \R_{\geq 0}$ and a unique $x'\in {\rm PoolBalance}$ such that $(u,x)$ and $(\lambda\cdot x',x')$ have the same invariants. 
+
+In addition, $\lambda$ and $x'$ are explicitly given by
+\begin{align*}
+1 + \lambda &= \sqrt[n]{\prod_{i=1}^n \frac{u_i+x_i}{x_i}} = \prod_{i=1}^n \sqrt[n]{1 + \frac{u_i}{x_i}},\\
+x' &=\frac{1}{1+\lambda}\cdot (u+x). 
+\end{align*}
+\begin{proof}
+For all $(\lambda\cdot x',x')$ with the same invariants, that is $(1+\lambda)\cdot x'_i = u_i + x_i$ for all $i$, and $\prod_i x'_i = \prod_i x_i$, we get
+$$
+1+\lambda = \sqrt[n]{\prod_{i=1}^n \frac{(1+\lambda)x'_i}{x'_i}} = \sqrt[n]{\prod_{i=1}^n \frac{u_i+x_i}{x_i}}. 
+$$
+This implies the claimed formulas and uniqueness. 
+\end{proof}
+\end{proposition}
+
+Lemma \ref{lemma:connected} implies that $(u,x)$ and $(\lambda \cdot x', x')$ from Proposition \ref{proposition:lambda} are connected by a chain of zero fee swaps.
+
+\subsubsection{} When liquidity is added to a pool, liquidity tokens are minted. In addition, we would like to keep track in which tokens the liquidity was provided. This is important in order to avoid a scenario where liquidity is provided in a token $i$ and removed in a different token $j$, which would result in a zero fee swap bypassing the pool fees.  
+
+\begin{notation}
+We will use the following notations:
+\begin{align*}
+&{\rm PoolLiquidity} = \R_{>0}, \\
+&{\rm Pool} = {\rm PoolBalance} \times {\rm PoolLiquidity}, \\
+&{\rm UserLiquidity} = \R^n_{\geq 0}, \\
+&{\rm User} = {\rm UserBalance} \times {\rm UserLiquidity}.
+\end{align*}
+We will denote the elements of ${\rm PoolLiquidity}$ by $\ell, \ell',\dots$, and the elements of ${\rm UserLiquidity}$ by $\kappa, \kappa',\dots$
+\end{notation} 
+
+\begin{definition}[Adding liquidity without bookkeeping]\label{definition:addLiquidity}
+For $\delta\in \R^{n}_{\geq 0}$, we define 
+$$
+{\rm addLiquidity}_{\delta}: {\rm UserBalance}_{u \geq \delta} \times {\rm Pool} \xr{} {\rm UserBalance} \times {\rm Pool}  
+$$
+by 
+$$
+(u, x, \ell) \mapsto \left(u-\delta, x+\delta, \ell\cdot \prod_{i=1}^n \sqrt[n]{1 + \frac{\delta_i}{x_i}}\right).
+$$
+\end{definition}
+
+In order to compare it with common ways to add liquidity, suppose that $\delta = \mu \cdot x$. Then we get 
+$$
+{\rm addLiquidity}_{\delta}(u,x,\ell)=(u-\delta, (1+\mu)\cdot x, (1+\mu)\cdot \ell),
+$$
+which agrees with \cite{x-y-k}. 
+
+In general, we can use zero fee swaps to move from $(\delta, x)$ to $(\lambda \cdot x',x')$ by Proposition \ref{proposition:lambda}. Adding liquidity in the usual way, yields $(u-\delta, (1+\lambda)\cdot x', (1+\lambda)\cdot \ell)$, which agrees with Definition \ref{definition:addLiquidity},  because $(1+\lambda)\cdot x'=x+\delta$. 
+
+%The next proposition shows that adding liquidity has the %expected properties: adding first $\delta$ and then $\delta'$ %is the same as adding $\delta+\delta'$ directly.
+
+%\begin{proposition}
+%For all $\delta, \delta' \in \R^n_{\geq 0}$, we have 
+%$$
+%{\rm addLiquidity}_{\delta'} \circ {\rm addLiquidity}_{\delta} %= {\rm addLiquidity}_{\delta+\delta'}.
+%$$
+%\begin{proof}
+%This follows from $(1+\frac{\delta'_i}{x_i+\delta_i})\cdot (1 + \frac{\delta_i}{x_i}) = 1 + \frac{\delta_i+\delta'_i}{x_i}$.
+%\end{proof}
+%\end{proposition}
+
+
+\subsubsection{}
+In order to avoid arbitrary swaps by adding liquidity in one token and removing liquidity in a different token, the market maker has to do some bookkeeping. We will also restrict the adding liquidity operation to the following two scenarios: adding liquidity in a balanced way and adding liquidity in one token only.  
+
+\begin{definition}[Adding liquidity with bookkeeping]\label{definition:addLiquidity-bookkeeping}
+For $\delta\in \R^{n}_{\geq 0}$, we define 
+$$
+{\rm addLiquidity}^{{\rm balanced}}_{\delta}: {\rm User}_{u \geq \delta} \times {\rm Pool} \xr{} {\rm User} \times {\rm Pool}  
+$$
+by 
+$$
+(u, \kappa, x, \ell) \mapsto \left(u-\delta, \kappa + \frac{\ell\cdot \lambda}{n},  x+\delta, \ell\cdot (1+\lambda)\right),
+$$
+whenever $\delta = \lambda\cdot x$.
+
+Let $i$ be a token and $\delta\in \R_{\geq 0}$. We denote by $e_i\in \R_{\geq 0}^n$ the vector with coordinate $1$ at $i$ and $0$ otherwise. We define 
+$$
+{\rm addLiquidity}^{i}_{\delta}: {\rm User}_{u_i \geq \delta} \times {\rm Pool} \xr{} {\rm User} \times {\rm Pool}  
+$$
+by 
+$$
+(u, \kappa, x, \ell) \mapsto \left(u-\delta\cdot e_i, \kappa + \lambda \cdot \ell\cdot e_i,  x+ \delta \cdot e_i, \ell\cdot (1+\lambda) \right),
+$$
+with $1+\lambda = \sqrt[n]{\left(1+\frac{\delta}{x_i}\right)}.$
+
+\end{definition}
+
+
+\subsection{Removing liquidity}
+To the best of our knowledge the common practice for removing liquidity is to receive the tokens proportional to the pool balance \cite{uniswap} or charge a fee for adding or removing liquidity \cite{Balancer}. If only one token is desired, then swaps have to be used after removing liquidity. 
+
+In the following we will define how to remove liquidity in a balanced way and for one token only. 
+
+\begin{definition}[Removing liquidity in a balanced way]\label{definition:removeLiquidity-balanced}
+
+Let $\Delta_{\ell}\in \R_{\geq 0}$, we set $\alpha = 1-\frac{\Delta_{\ell}}{\ell}$ and define
+$$
+{\rm removeLiquidity}_{\Delta_\ell}^{{\rm balanced}}: {\rm User}_{\kappa\geq \frac{\Delta_{\ell}}{n}} \times {\rm Pool}_{\ell>\Delta_{\ell}} \xr{} {\rm User} \times {\rm Pool}  
+$$
+by 
+$$
+(u, \kappa, x, \ell) \mapsto (u+ (1-\alpha) \cdot x, \kappa-\frac{\Delta_{\ell}}{n}, \alpha \cdot x, \ell-\Delta_{\ell}).
+$$
+\end{definition}
+
+\begin{definition}[Removing liquidity in one token]\label{definition:removeLiquidity-one-token}
+
+Let $i$ be a token and $\Delta_{\ell}\in \R_{\geq 0}$, we set $\alpha = 1-\frac{\Delta_{\ell}}{\ell}$ and define
+$$
+{\rm removeLiquidity}_{\Delta_\ell}^{i}: {\rm User}_{\kappa_i\geq \Delta_{\ell}} \times {\rm Pool}_{\ell>\Delta_{\ell}} \xr{} {\rm User} \times {\rm Pool}  
+$$
+by 
+$$
+(u, \kappa, x, \ell) \mapsto (u+\delta, \kappa', x-\delta, \ell-\Delta_{\ell}),
+$$
+where 
+\begin{align*}
+\delta_j &= \begin{cases} (1-\alpha^n) \cdot x_i &\text{if $j=i$,} \\ 0 &\text{if $j\neq i$,} \end{cases} \\
+\kappa'_j &= \begin{cases} \kappa_i - \Delta_{\ell} &\text{if $j=i$,} \\ \kappa_j &\text{if $j\neq i$.} \end{cases}
+\end{align*}
+\end{definition}
+
+
+\subsection{Invariance}
+
+We extend swaps to ${\rm User} \times {\rm Pool}$ by leaving the liquidities unchanged. Moreover, let us extend ${\rm total}_i$ to ${\rm User} \times {\rm Pool}$ by the same formulas, and define the extension of $p$ by 
+$$
+p(u, \kappa, x, \ell) = \frac{1}{\ell^n} \cdot \prod_{j = 1}^n x_j. 
+$$
+We also set 
+$$
+q(u,\kappa,x,\ell) =  \ell-\sum_{i=1}^n \kappa_i.
+$$
+
+\begin{proposition}\label{proposition-invariance-2}
+For all $f\in \{q, {\rm total}_1, \dots, {\rm total}_n\}$ and $*\in \{{\rm balanced}, 1, \dots n\}$, we have
+\begin{align*}
+f &\circ {\rm swap}_{i,j,\delta}^{\gamma_{i,j}} = f \\
+f &\circ {\rm addLiquidity}^*_{\delta} = f \\
+f &\circ {\rm removeLiquidity}^*_{\Delta_\ell} = f\\ 
+p &\circ  {\rm addLiquidity}^*_{\delta} = p \\
+p &\circ  {\rm removeLiquidity}^*_{\Delta_\ell} = p.
+\end{align*}
+Moreover, we have 
+$$
+p\circ {\rm swap}_{i,j,\delta}^{\gamma_{i,j}} \geq p,
+$$
+with equality whenever $\gamma_{i,j}=1$. 
+\end{proposition}
+
+\subsection{Safety I}
+Adding and removing liquidity in an unbalanced way has an influence on the prices. Without restrictions, it can be used to induce zero fee swaps circumventing pool fees. 
+
+For example, take $n=2$, $\delta = \lambda \cdot x$, and consider the composition
+$$
+f = {\rm removeLiquidity}^2_{\frac{\lambda\cdot \ell}{2}} \circ {\rm removeLiquidity}^1_{\frac{\lambda\cdot \ell}{2}}  \circ {\rm addLiquidity}^{\rm balanced}_{\delta}.
+$$      
+After applying $f$, the pool liquidity equals $\ell$, thus Proposition \ref{proposition-invariance-2} and \ref{proposition:lambda} imply that $f$ is a zero fee swap. By computing explicitly, we can see that $f$ is not the identity. 
+
+In order to avoid zero fee swaps we suggest to introduce a wait time after adding or removing liquidity in an unbalanced way. During the wait period the pool balance can revert to market prices through arbitrage. Mathematically we model this with a rebalance operation.
+
+\begin{definition}\label{definition:rebalance}   
+We set 
+\begin{align*}
+{\rm rebalance}_{\bar{x}}: {\rm PoolBalance} &\xr{} {\rm PoolBalance}\\
+x &\mapsto \sqrt[n]{\prod_{i=1}^n\frac{x_i}{\bar{x}_i}} \cdot \bar{x},  
+\end{align*}
+and extend ${\rm rebalance}_{\bar{x}}$ to ${\rm User}\times {\rm Pool}$ by using the identity on the other factors.
+\end{definition}
+
+For adding or removing liquidity, and then waiting for some time, we will use the compositions
+$$
+{\rm rebalance}_{\bar{x}} \circ {\rm addLiquidity}^i_{\delta}, \quad {\rm rebalance}_{\bar{x}} \circ {\rm removeLiquidity}^i_{\Delta_{\ell}}.  
+$$ 
+
+\begin{thm} \label{thm-no-zero-fee-swaps}
+Fix $\bar{x}\in {\rm PoolBalance}$, and let $f$ be any composition of the following functions: 
+\begin{align*}
+&{\rm addLiquidity}^{\rm balanced}_{*}, \quad {\rm rebalance}_{\bar{x}} \circ {\rm addLiquidity}^i_{*}, \\  &{\rm removeLiquidity}^{{\rm balanced}}_{*}, \quad {\rm rebalance}_{\bar{x}} \circ {\rm removeLiquidity}^i_{*}.
+\end{align*} 
+%for any $\delta$, $i$, and $\Delta_{\ell}$. 
+For all $(u,\kappa, \bar{x}, \ell)$ on which $f$ is defined, let $(u',\kappa',x',\ell')=f(u,\kappa, \bar{x}, \ell)$ be the image. If $\kappa'\geq \kappa$ then $u\geq u'$.
+\begin{proof}
+Only elements of the form $(\tilde{u}, \tilde{\kappa}, \mu \cdot \bar{x}, \ell\cdot \mu)$, for some $\mu>0$, can be produced by applying the four function types, because of rebalancing. 
+
+Let us define 
+$$
+t_i(\tilde{u}, \tilde{\kappa}):=\frac{\ell}{\bar{x}_i}\cdot \tilde{u}_i + n\cdot \tilde{\kappa}_i,
+$$
+for each $i$. All four function types satisfy the following property: if $(\tilde{u}', \tilde{\kappa}', \tilde{x}', \tilde{\ell}')$ is the image of $(\tilde{u}, \tilde{\kappa}, \tilde{x}, \tilde{\ell})$ then 
+\begin{equation}\label{equation-inequality}
+t_i(\tilde{u}', \tilde{\kappa}') \leq t_i(\tilde{u}, \tilde{\kappa}) 
+\end{equation}  
+for all $i$. 
+
+Indeed, it's easy to check that equality holds for the functions ${\rm addLiquidity}^{\rm balanced}_{\delta}$ and ${\rm removeLiquidity}^{{\rm balanced}}_{\Delta_\ell}$. For ${\rm addLiquidity}^i_{\delta}$ this leads to the inequality 
+$$
+-t + n \cdot \left( \sqrt[n]{1+t} - 1 \right) \leq 0 
+$$
+for all $0\leq t\leq 1$, which is easy to prove. For ${\rm removeLiquidity}^i_{\Delta_{\ell}}$ it is implied by the inequality 
+$$
+1 - (1-t)^n -n\cdot t\leq 0 
+$$
+for all $0\leq t\leq 1$, which is easy to prove again. 
+
+Now that we have \eqref{equation-inequality} at our disposal, we  conclude 
+$$
+t_i(u',\kappa')\leq t_i(u,\kappa).
+$$
+By assumption we have $\kappa'_i\geq \kappa_i$, thus $u_i\geq u'_i$, and we are done.
+\end{proof} 
+\end{thm}
+
+\subsection{Adding liquidity in one token losses}
+Adding liquidity in an unbalanced way changes the prices, which  results in arbitrage and short term losses for the liquidity provider. Today's practice where swaps have to be used to produce equal value shares in order to provide liquidity is even worse. Additionally to the losses resulting from the modification of the price, liquidity providers pay fees for the swaps. 
+
+Let us calculate the liquidity provider's losses with the follwing model: first add liquidity in one token, then the pool rebalances, and finally the liquidity is removed again. Arbitrage is modelled by rebalancing.
+
+Suppose that $\delta$ is the amount of token $i$ provided, and $x_i$ is the token $i$ balance of the pool. Then the losses are approximated by 
+$$
+\delta\cdot \frac{n-1}{n}\cdot \frac{\delta}{x_i}
+$$    
+for small enough $\frac{\delta}{x_i}$. This means that if $\delta$ is $0.5\%$ percent of $x_i$ then the liquidity provider has an approximately $0.25\%$ short term loss for a pool with $2$ tokens.   When the number $n$ of tokens in the pool is large, and $\delta$ is $d$ percent of $x_i$, then the loss will be approximately $d$ percent.  
+
+\subsection{Safety II}
+A further step is to show that by using any possible combination of swaps, adding liquidity, and removing liquidity the value of the user balance does not increase.    
+
+\begin{definition}
+Let $u\in {\rm UserBalance}$, let $x\in {\rm PoolBalance}$ and let $i$ be a token. 
+
+We define the \emph{value} of $u$ with respect to $x$ and $i$ by
+$$
+{\rm value}^{x,i}(u) = \sum_{j=1}^n \frac{x_i}{x_j}\cdot u_j.
+$$ 
+\end{definition}
+
+In the following theorem we assume that the pool balance $x$ properly reflects the market prices. Then we let a user  interact with the pool and show that the user's resulting balance has not increased in value with respect to the market prices.   
+
+\begin{thm}\label{thm:no-loss}
+Let $(u,\kappa, x,\ell)\in {\rm User}\times {\rm Pool}$ be the start state. After arbitrary swaps, adding and removing liquidity let $(u', \kappa', x',\ell')$ be the resulting state. 
+
+We assume that $\kappa'\geq \kappa$, that is, no liquidity reserves that existed before have been used. Then 
+$$
+{\rm value}^{x,i}(u) \geq {\rm value}^{x,i}(u')
+$$
+for all $i$.
+\begin{proof}
+%We may assume $\kappa'=\kappa$, because otherwise more %liquidity can be removed thus increasing the value of $u'$. 
+%
+%Now, $\kappa'=\kappa$ implies $\lambda'=\lambda$. 
+
+We set $t_i = {\rm total}_i(u,x) = {\rm total}_i(u',x')$ for all $i$, and get 
+\begin{align*}
+{\rm value}^{x,i}(u) &= \sum_{j=1}^n \frac{x_i}{x_j}(t_j-x_j) \\
+{\rm value}^{x,i}(u') &= \sum_{j=1}^n \frac{x_i}{x_j}(t_j-x'_j).
+\end{align*}
+Thus it suffices to prove 
+$$
+\sum_{j=1}^n\frac{x'_j}{x_j} \geq n.
+$$
+We know that $\prod_{j=1}^n \frac{x'_j}{x_j}\geq \ell'/\ell\geq 1$, because $\ell'\geq \ell$. By using Lemma \ref{lemma:arithmetic-geometric} we can finish the proof.
+\end{proof}
+\end{thm}
+
+
+\begin{lemma}\label{lemma:arithmetic-geometric}
+Let $q \in \R^n_{>0}$ be such that $\prod_{i=1}^n q_i\geq 1$, then $\sum_{i=1}^n q_i \geq n$.
+\begin{proof}
+By the inequality of arithmetic and geometric mean, we get 
+$$
+\frac{1}{n} \cdot \sum_{i=1}^n q_i\geq \sqrt[n]{\prod_{i=1}^n q_i}\geq 1.
+$$
+\end{proof}
+\end{lemma}
+
+
+
+\bibliography{add-liquidity}
+\end{document}
+
